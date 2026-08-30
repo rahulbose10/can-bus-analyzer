@@ -5,6 +5,7 @@
 - Created project directory structure
 - Initialized git repo and pushed to GitHub
 - Reading done: LDD3 Ch 1-2, Billimoria Ch 1-2
+
 ## 2026-08-05 — Week 0, session 2
 - Built and loaded hello.ko natively on the VM (6.8.0-136-generic).
   dmesg: "hello: loaded by pid 22310 (insmod)".
