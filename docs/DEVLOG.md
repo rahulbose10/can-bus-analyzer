@@ -16,3 +16,14 @@
   intact for .ko builds, where rmmod needs to call it.
 - ARM cross-build still blocked: BBB unopened, don't know its kernel
   version yet.
+
+## <today's real date> — Week 0, session 3
+- Brought up vcan0. Got mtu 72 instead of the 16 I expected, this
+  kernel's vcan driver defaults to CAN FD sized frames rather than
+  classic can_frame. Classic 8-byte frames still work fine over it.
+- candump/cansend loopback confirmed working, sent 123#DEADBEEF,
+  candump showed it immediately.
+- lsmod before had vcan and can_dev only. After sending a frame,
+  can_raw and can both appeared, can_raw depends on can. vcan's own
+  use count stayed 0 the whole time.
+- Saved setup as scripts/setup_vcan.sh.
