@@ -17,7 +17,7 @@
 - ARM cross-build still blocked: BBB unopened, don't know its kernel
   version yet.
 
-## <today's real date> — Week 0, session 3
+## 2026-08-30 — Week 0, session 3 — Week 0, session 3
 - Brought up vcan0. Got mtu 72 instead of the 16 I expected, this
   kernel's vcan driver defaults to CAN FD sized frames rather than
   classic can_frame. Classic 8-byte frames still work fine over it.
