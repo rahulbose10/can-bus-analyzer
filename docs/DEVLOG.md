@@ -29,7 +29,7 @@
 - Saved setup as scripts/setup_vcan.sh.
 
 
-##2026-09-22 — Week 0, session 4
+## 2026-09-22 — Week 0, session 4
 - Read through struct can_frame and struct canfd_frame in the actual kernel header, /usr/include/linux/can.h. Saw the real fields, not just a description of them.
 - Also found struct can_filter in the same header, the exact filter formula from earlier is a real kernel struct, not something made up for teaching. Confirmed it uses can_id and can_mask.
 - Sent four different frame shapes on vcan0 and watched candump print each one differently: a normal frame with data, an empty frame with no data, an extended ID frame, and a remote request frame.
