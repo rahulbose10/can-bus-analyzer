@@ -38,3 +38,12 @@
 - Lesson for myself: a filter that shows nothing isn't automatically broken, it might just mean nothing matching has happened yet. Have to test with something that should match before assuming it's broken.
  
 
+## 2026-09-28 - Week 0, session 6
+- Checked the receive lists live through /proc/net/can. After sudo modprobe can, all 8 files were there: rcvlist_all, rcvlist_eff, rcvlist_err, rcvlist_fil, rcvlist_inv, rcvlist_sff, reset_stats, stats.
+- rcvlist_all was empty before anything ran. Started candump vcan0 and one entry showed up, can_id 000, can_mask 00000000, ident raw, matches 0. That's candump's subscription, mask 0 means everything.
+- Sent 123#11223344, matches went to 1. Sent 456#AABB, matches went to 2. No filtering at all with mask 0, every frame gets handed over.
+- Closed candump with Ctrl+C and the entry disappeared. Closing the program removes its subscription.
+- Started candump vcan0,123:7FF. This time rcvlist_all stayed empty and the entry showed up in rcvlist_fil instead, can_mask 000007ff. A filtered subscription goes in a different list.
+- Sent 123#11, delivered. Sent 124#22, never showed up. Then sent 00000123#AA, an extended frame, and it got through. matches ended at 2. Mask 7FF only checks the bottom 11 bits. The extended flag is bit 31, outside the mask, so nobody checks it.
+- Restarted with candump vcan0,123:800007FF. Sent 123#11, delivered. Sent 00000123#AA, blocked this time. matches ended at 1. Adding bit 31 to the mask made the filter check the extended flag too.
+- Lesson: the filtering happens inside the kernel, before candump sees anything. And a 7FF mask alone doesn't keep extended frames out.
