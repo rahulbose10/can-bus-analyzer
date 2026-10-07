@@ -47,3 +47,16 @@
 - Sent 123#11, delivered. Sent 124#22, never showed up. Then sent 00000123#AA, an extended frame, and it got through. matches ended at 2. Mask 7FF only checks the bottom 11 bits. The extended flag is bit 31, outside the mask, so nobody checks it.
 - Restarted with candump vcan0,123:800007FF. Sent 123#11, delivered. Sent 00000123#AA, blocked this time. matches ended at 1. Adding bit 31 to the mask made the filter check the extended flag too.
 - Lesson: the filtering happens inside the kernel, before candump sees anything. And a 7FF mask alone doesn't keep extended frames out.
+
+
+
+## 2026-10-08 - Week 0, session 7
+- Measured CANH to CANL with everything unpowered. Expected about 60 ohm, two 120 ohm terminators in parallel (derived, 120 x 120 / 240). Got about 120 instead, and it jumped around, 121, 157, 181, sometimes OL.
+- Measured each board on its own, about 120 each, so both terminators were fine. Pressing down on the board made it read 61 for a moment. Loose contact somewhere.
+- Swapped the two boards. The 120 reading stayed with breadboard columns 20 to 25, not with the board. The clips in those columns are loose. Moved the DCAN0 board to columns 28 to 33. After that, 60.4 ohm from one end and 61.1 from the other.
+- Wired the CP2102 to J1, GND to pin 1, TXD to pin 4, RXD to pin 5. picocom -b 115200 /dev/ttyUSB0 gave the login prompt. picocom had local echo off, so seeing my typing come back meant both wires worked.
+- First login forced a password change, the default one is expired on this image.
+- Board is a rev D, not rev C like I'd assumed. /proc/device-tree/model says TI AM335x BeagleBone Black rev D, EEPROM reads A335BNLT 00D0. Kernel 6.12.28-bone25, image is Debian Bookworm Base 2025-05-27.
+- No BB-CAN0 or BB-CAN1 overlay anywhere on this image, searched /boot, /usr and /opt. But /boot/config shows CONFIG_CAN_C_CAN_PLATFORM=m and CAN_RAW=m, so the driver is there, just nothing turning the controllers on.
+- Lesson: if a reading changes when you press on something, it's the contact, not the part. And swapping two things tells you which one the fault follows.
+
