@@ -50,13 +50,25 @@
 
 
 
-## 2026-10-08 - Week 0, session 7
-- Measured CANH to CANL with everything unpowered. Expected about 60 ohm, two 120 ohm terminators in parallel (derived, 120 x 120 / 240). Got about 120 instead, and it jumped around, 121, 157, 181, sometimes OL.
-- Measured each board on its own, about 120 each, so both terminators were fine. Pressing down on the board made it read 61 for a moment. Loose contact somewhere.
-- Swapped the two boards. The 120 reading stayed with breadboard columns 20 to 25, not with the board. The clips in those columns are loose. Moved the DCAN0 board to columns 28 to 33. After that, 60.4 ohm from one end and 61.1 from the other.
-- Wired the CP2102 to J1, GND to pin 1, TXD to pin 4, RXD to pin 5. picocom -b 115200 /dev/ttyUSB0 gave the login prompt. picocom had local echo off, so seeing my typing come back meant both wires worked.
+## 2026-10-06 - Week 0, session 7
+- Soldered the 6-pin headers onto both CJMCU-230 transceiver boards, using the breadboard to hold the pins straight. Board B's CRX and CTX joints came out lumpy with spiky tips, but they stayed separate. Wrote A and B on the back of the boards.
+- Meter on 200 ohm, nothing powered. Board A: CANH to CANL 120.7, 3V3 to GND OL, CANH-CRX, CRX-CTX and CTX-GND all OL. Board B: CANH to CANL 119.7 (119.9 on a re-check), 3V3 to GND OL, the three neighbour pairs all OL. So both boards have their own 120 ohm terminator and no solder bridges.
+- Powered the BeagleBone alone from laptop USB, no SD card, it booted from the eMMC and USR0 did the heartbeat. My first try had both measuring wires one socket off, fixed that. P9 pin 1 to pin 3 read 3.41 V. Moved the second wire from pin 3 to pin 32 and got a steady 1.80 V. Pin 32 is the only P9 pin with 1.8 V, so my pair counting is right and the inner row really is the even pins.
+- Put the boards on the breadboard, B in columns 20 to 25, A in 40 to 45. First attempt was in the wrong half of the breadboard, moved them. On my breadboard the board pins sit in row f, which is the manual's row e. The manual's row a is my row j.
+- Wired board A: W1 black P9 pin 1 to GND, W2 red pin 3 to 3V3, W3 yellow pin 26 to CTX, W4 green pin 24 to CRX, breadboard ends in row j. The first wires I grabbed had female ends and wouldn't go into anything, swapped them for male to male.
+- Lesson: the meter tests before power are what made the soldering safe to trust, the joints looked worse than they measured. And pin 32 at 1.8 V proves the counting before any real wire goes in.
+
+
+
+## 2026-10-08 - Week 0, session 8
+- The evening before (7 Oct), wired board B: W5 black P9 pin 2 to GND, W6 red pin 4 to 3V3, W7 yellow pin 20 to CTX, W8 green pin 19 to CRX. Joined the bus with W9 orange CANH to CANH and W10 blue CANL to CANL, row h on my breadboard, twisted loosely.
+- Measured CANH to CANL with everything unpowered. Expected about 60 ohm, two 120 ohm terminators in parallel (derived, 120 x 120 / 240). Got about 120 instead, and it jumped around: 121, 131, 157, 181.
+- Beep tests on W9 and W10 both passed, so the bus wires were fine. Lifted W9 to split the boards. Through the breadboard, the board in columns 40 to 45 read about 121 and the board in 20 to 25 read OL. Directly on its own solder joints that second board read about 119, so its terminator was fine. Pressing down on the board made the bus read 61 for a moment. Loose contact somewhere.
+- Swapped the two boards. The 120 reading stayed with breadboard columns 20 to 25, not with the board. The clips in those columns are loose. Moved that board and its six wires to columns 28 to 33. After that, 60.4 ohm from one end and 61.1 from the other. Board A now sits in 28 to 33 as DCAN0, board B in 40 to 45 as DCAN1.
+- Wired the CP2102 to J1, GND to pin 1, TXD to pin 4, RXD to pin 5. Beep test from the CP2102 GND to the transceiver GND passed. sudo picocom -b 115200 /dev/ttyUSB0 gave the login prompt (I'm not in the dialout group yet). picocom had local echo off, so seeing my typing come back meant both wires worked.
 - First login forced a password change, the default one is expired on this image.
 - Board is a rev D, not rev C like I'd assumed. /proc/device-tree/model says TI AM335x BeagleBone Black rev D, EEPROM reads A335BNLT 00D0. Kernel 6.12.28-bone25, image is Debian Bookworm Base 2025-05-27.
 - No BB-CAN0 or BB-CAN1 overlay anywhere on this image, searched /boot, /usr and /opt. But /boot/config shows CONFIG_CAN_C_CAN_PLATFORM=m and CAN_RAW=m, so the driver is there, just nothing turning the controllers on.
+- Mistake on shutdown: after sudo poweroff, Ctrl+A then Ctrl+X didn't close picocom, so the CP2102 stayed plugged into the powered-off board for a few minutes. From now on I unplug the CP2102 right after typing sudo poweroff.
 - Lesson: if a reading changes when you press on something, it's the contact, not the part. And swapping two things tells you which one the fault follows.
 
