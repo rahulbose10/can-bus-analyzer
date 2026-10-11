@@ -93,3 +93,41 @@
 - Same shutdown mistake as 8 Oct. After sudo poweroff I watched the shutdown messages, and the CP2102 was still plugged in when the board printed reboot: Power down. Pulled it then. It has to come out right after Enter on sudo poweroff, not after the output.
 - Lesson: a voltage on the breadboard column only proves the pin has power, not the board behind it. The solder joint is what carries it in, and a close photo showed what the meter couldn't. Also, one command at a time: pasting a block hid the first frame and made a working bus look broken.
 
+
+## Session 10: 11 to 12 Oct 2026, the real bus stopped working
+
+### What happened
+- On 10 Oct the two-node bus worked: frames went from one controller to the other with zero errors.
+- On 11 Oct, after I reseated the transceiver boards on the breadboard, no frame crossed in either direction.
+- Added scripts/setup_can.sh. It brings can0 and can1 up together at 500000, because a node alone on the bus gets no ACK and keeps resending.
+
+### Symptoms
+- can0 sends, candump on can1: can0 goes ERROR-PASSIVE with berr-counter tx 128 rx 0 and TX packets 0. can1 shows nothing, no frames and no errors.
+- can1 sends, candump on can0: the mirror image, can1 ERROR-PASSIVE with tx 128 rx 0.
+- tx stuck at 128 means ACK errors only. The sender reads its own bits back fine, but nobody acknowledges. So each transceiver works on its own and the link between them is broken.
+- Once, while I was probing joints with the meter, 2 frames went through (can1 TX 2, can0 RX 2). The fault is intermittent.
+
+### Ruled out
+- Power: 3V3 reads 3.40 V at both boards.
+- Pin mux and controllers: each controller gets its own bits back through its transceiver.
+- P9 wiring: checked against a photo of the header. The CTX and CRX wires read 0.2 ohm and stay steady when bent.
+- Idle bus: CANH and CANL both sit at about 1.70 V.
+- Breadboard and bus wires: moved both boards to a new breadboard with new CANH and CANL wires, then removed the breadboard completely and put female jumpers straight onto the module pins. Same result every time.
+
+### What the meter shows (power off, boards joined)
+- CANH to CANL measured on board A: 120.7 ohm. Measured on board B: 60.5 ohm.
+- Two 120 ohm terminators joined by wires must read the same 60 from both ends. One end reading 120 and the other 60 means the connection changes between the two measurements: a joint that opens and closes when pressed.
+- Board A alone at its pin tips reads a steady 120.6 to 120.87, even when the pins are pushed.
+- Close-up photos of the header joints show cold joints on both boards: spikes, grainy solder, dark voids next to the CANL and CANH pins, and a gap between pin and solder on others.
+
+### Current theory, not confirmed yet
+- A cold joint on board B's CANH or CANL header pin, open at rest and closed under probe pressure. It fits every reading so far.
+
+### Next
+- Measure board B alone at its pin tips, first with a light touch, then with pressure.
+- Reflow every header joint on both boards. Check each board alone (about 120, steady) and joined (about 60 from both sides), then run the forward and reverse tests again.
+
+### Mistakes I made while debugging
+- Swapped the boards to see if the fault followed one board. For a broken link between two boards that test tells nothing, because both sides look the same.
+- Blamed the breadboard. Removing it changed nothing.
+- Trusted single meter readings. A volt reading of 0.00 was the probe sitting on flux, not a real zero.
