@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * can_analyzer_chrdev.c: /dev/can_analyzer, one text line per frame.
+ * can_analyzer_chrdev.c: /dev/can_analyzer, one text line per frame,
+ * and the ioctl calls that manage filter rules.
  */
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <linux/module.h>
+#include <linux/capability.h>
 #include <linux/fs.h>
 #include <linux/miscdevice.h>
 #include <linux/poll.h>
+#include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/wait.h>
 #include "can_analyzer.h"
@@ -59,11 +62,47 @@ static __poll_t analyzer_poll(struct file *file, poll_table *wait)
 	return analyzer_rx_empty() ? 0 : (EPOLLIN | EPOLLRDNORM);
 }
 
+/*
+ * Changing rules needs CAP_NET_ADMIN, listing them is open to all.
+ * The list is kzalloc'ed because unused slots are copied to user space.
+ */
+static long analyzer_ioctl(struct file *file, unsigned int cmd,
+						   unsigned long arg)
+{
+	void __user *uarg = (void __user *)arg;
+	struct can_analyzer_rule_list *list;
+	struct can_analyzer_rule rule;
+	long ret;
+
+	switch (cmd) {
+	case CAN_ANALYZER_ADD_RULE:
+	case CAN_ANALYZER_DEL_RULE:
+		if (!capable(CAP_NET_ADMIN))
+			return -EPERM;
+		if (copy_from_user(&rule, uarg, sizeof(rule)))
+			return -EFAULT;
+		if (cmd == CAN_ANALYZER_ADD_RULE)
+			return analyzer_filter_add(&rule);
+		return analyzer_filter_del(&rule);
+	case CAN_ANALYZER_LIST_RULES:
+		list = kzalloc(sizeof(*list), GFP_KERNEL);
+		if (!list)
+			return -ENOMEM;
+		analyzer_filter_list(list);
+		ret = copy_to_user(uarg, list, sizeof(*list)) ? -EFAULT : 0;
+		kfree(list);
+		return ret;
+	default:
+		return -ENOTTY;
+	}
+}
+
 static const struct file_operations analyzer_fops = {
-	.owner  = THIS_MODULE,
-	.read   = analyzer_read,
-	.poll   = analyzer_poll,
-	.llseek = noop_llseek,
+	.owner          = THIS_MODULE,
+	.read           = analyzer_read,
+	.poll           = analyzer_poll,
+	.unlocked_ioctl = analyzer_ioctl,
+	.llseek         = noop_llseek,
 };
 
 static struct miscdevice analyzer_misc = {

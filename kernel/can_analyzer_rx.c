@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * can_analyzer_rx.c: receive hook and frame buffer.
+ * can_analyzer_rx.c: receive hook, filter check and frame buffer.
  */
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
@@ -33,6 +33,7 @@ DECLARE_WAIT_QUEUE_HEAD(analyzer_wq);
 
 static struct net_device *analyzer_dev;
 static atomic_long_t frames_seen = ATOMIC_LONG_INIT(0);
+static atomic_long_t frames_filtered = ATOMIC_LONG_INIT(0);
 static atomic_long_t frames_dropped = ATOMIC_LONG_INIT(0);
 
 /*
@@ -41,15 +42,23 @@ static atomic_long_t frames_dropped = ATOMIC_LONG_INIT(0);
  */
 static void analyzer_rx(struct sk_buff *skb, void *data)
 {
+	const struct can_frame *cf;
 	struct analyzer_record rec;
 	unsigned int stored;
 
-	if (skb->len < sizeof(struct can_frame))
+	if (skb->len < sizeof(*cf))
 		return;
 
 	rec.ts_ns = ktime_get_ns();
-	memcpy(&rec.cf, skb->data, sizeof(rec.cf));
+	cf = (const struct can_frame *)skb->data;
 	atomic_long_inc(&frames_seen);
+
+	if (!analyzer_filter_accept(cf->can_id)) {
+		atomic_long_inc(&frames_filtered);
+		return;
+	}
+
+	memcpy(&rec.cf, cf, sizeof(rec.cf));
 
 	spin_lock(&rx_lock);
 	stored = kfifo_put(&rx_fifo, rec);
@@ -159,11 +168,12 @@ static void __exit analyzer_exit(void)
 	analyzer_chrdev_exit();
 	dev_put(analyzer_dev);
 
-	pr_info("stopped: %ld seen, %u unread, %ld dropped\n",
-			atomic_long_read(&frames_seen), kfifo_len(&rx_fifo),
-			atomic_long_read(&frames_dropped));
+	pr_info("stopped: %ld seen, %ld filtered, %u unread, %ld dropped\n",
+			atomic_long_read(&frames_seen), atomic_long_read(&frames_filtered),
+			kfifo_len(&rx_fifo), atomic_long_read(&frames_dropped));
 	analyzer_drain();
 	kfifo_free(&rx_fifo);
+	analyzer_filter_exit();
 }
 
 module_init(analyzer_init);
@@ -171,4 +181,4 @@ module_exit(analyzer_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Rahul Bose");
-MODULE_DESCRIPTION("CAN bus analyzer: receive hook, kfifo, /dev/can_analyzer");
+MODULE_DESCRIPTION("CAN bus analyzer: receive hook, filters, kfifo, /dev/can_analyzer");
