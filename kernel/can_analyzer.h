@@ -4,6 +4,7 @@
  * can_analyzer_rx.c owns the kfifo and the wait queue.
  * can_analyzer_chrdev.c owns /dev/can_analyzer.
  * can_analyzer_filter.c owns the filter rules.
+ * can_analyzer_stats.c owns the counters and /proc/can_analyzer/stats.
  */
 #ifndef CAN_ANALYZER_H
 #define CAN_ANALYZER_H
@@ -38,5 +39,14 @@ int analyzer_filter_add(const struct can_analyzer_rule *in);
 int analyzer_filter_del(const struct can_analyzer_rule *in);
 void analyzer_filter_list(struct can_analyzer_rule_list *list);
 void analyzer_filter_exit(void);
+
+/* Statistics. frame() and error() run in softirq. */
+int analyzer_stats_init(void);
+void analyzer_stats_exit(void);
+void analyzer_stats_frame(const struct can_frame *cf);
+void analyzer_stats_error(const struct can_frame *cf);
+
+/* rx counters for /proc. Process context. */
+void analyzer_rx_counters(long *filtered, long *dropped, unsigned int *unread);
 
 #endif

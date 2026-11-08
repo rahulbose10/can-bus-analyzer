@@ -25,8 +25,9 @@ static int analyzer_format(const struct analyzer_record *rec, char *line,
 	u32 id = (rec->cf.can_id & CAN_EFF_FLAG) ? (rec->cf.can_id & CAN_EFF_MASK)
 											 : (rec->cf.can_id & CAN_SFF_MASK);
 
-	return scnprintf(line, size, "t=%llu id=0x%x len=%u data=%*ph\n",
-					 rec->ts_ns, id, n, (int)n, rec->cf.data);
+	return scnprintf(line, size, "t=%llu id=0x%0*x len=%u data=%*ph\n",
+					 rec->ts_ns, (rec->cf.can_id & CAN_EFF_FLAG) ? 8 : 3, id,
+					 n, (int)n, rec->cf.data);
 }
 
 /* One frame per call. Sleeps until a frame arrives unless O_NONBLOCK. */

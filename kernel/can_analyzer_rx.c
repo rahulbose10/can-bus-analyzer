@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * can_analyzer_rx.c: receive hook, filter check and frame buffer.
+ * can_analyzer_rx.c: receive hooks, filter check and frame buffer.
  */
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
@@ -52,6 +52,7 @@ static void analyzer_rx(struct sk_buff *skb, void *data)
 	rec.ts_ns = ktime_get_ns();
 	cf = (const struct can_frame *)skb->data;
 	atomic_long_inc(&frames_seen);
+	analyzer_stats_frame(cf);
 
 	if (!analyzer_filter_accept(cf->can_id)) {
 		atomic_long_inc(&frames_filtered);
@@ -68,6 +69,14 @@ static void analyzer_rx(struct sk_buff *skb, void *data)
 		wake_up_interruptible(&analyzer_wq);
 	else
 		atomic_long_inc(&frames_dropped);
+}
+
+/* Softirq context. Error frames only feed the statistics. */
+static void analyzer_rx_err(struct sk_buff *skb, void *data)
+{
+	if (skb->len < sizeof(struct can_frame))
+		return;
+	analyzer_stats_error((const struct can_frame *)skb->data);
 }
 
 /* Called from read(). _bh because the rx callback runs in softirq on this CPU. */
@@ -92,6 +101,15 @@ bool analyzer_rx_empty(void)
 	return empty;
 }
 
+void analyzer_rx_counters(long *filtered, long *dropped, unsigned int *unread)
+{
+	*filtered = atomic_long_read(&frames_filtered);
+	*dropped = atomic_long_read(&frames_dropped);
+	spin_lock_bh(&rx_lock);
+	*unread = kfifo_len(&rx_fifo);
+	spin_unlock_bh(&rx_lock);
+}
+
 /* Only at rmmod, when nothing else can touch the fifo, so no lock. */
 static void analyzer_drain(void)
 {
@@ -103,8 +121,9 @@ static void analyzer_drain(void)
 		n = min_t(unsigned int, rec.cf.len, CAN_MAX_DLEN);
 		id = (rec.cf.can_id & CAN_EFF_FLAG) ? (rec.cf.can_id & CAN_EFF_MASK)
 											: (rec.cf.can_id & CAN_SFF_MASK);
-		pr_info("unread t=%llu ns id=0x%x len=%u data=%*ph\n",
-				rec.ts_ns, id, n, (int)n, rec.cf.data);
+		pr_info("unread t=%llu ns id=0x%0*x len=%u data=%*ph\n",
+				rec.ts_ns, (rec.cf.can_id & CAN_EFF_FLAG) ? 8 : 3, id,
+				n, (int)n, rec.cf.data);
 	}
 }
 
@@ -137,17 +156,37 @@ static int __init analyzer_init(void)
 		goto err_put;
 	}
 
+	ret = analyzer_stats_init();
+	if (ret) {
+		pr_err("stats init failed: %d\n", ret);
+		goto err_chrdev;
+	}
+
 	ret = can_rx_register(&init_net, analyzer_dev, 0, 0, analyzer_rx,
 						  NULL, "can_analyzer", NULL);
 	if (ret) {
 		pr_err("can_rx_register failed: %d\n", ret);
-		goto err_chrdev;
+		goto err_stats;
+	}
+
+	/* Error frames only reach receivers with CAN_ERR_FLAG in the mask. */
+	ret = can_rx_register(&init_net, analyzer_dev, 0,
+						  CAN_ERR_FLAG | CAN_ERR_MASK, analyzer_rx_err,
+						  NULL, "can_analyzer_err", NULL);
+	if (ret) {
+		pr_err("can_rx_register for errors failed: %d\n", ret);
+		goto err_data;
 	}
 
 	pr_info("listening on %s, buffer holds %u frames, /dev/can_analyzer ready\n",
 			ifname, kfifo_size(&rx_fifo));
 	return 0;
 
+err_data:
+	can_rx_unregister(&init_net, analyzer_dev, 0, 0, analyzer_rx, NULL);
+	synchronize_rcu();
+err_stats:
+	analyzer_stats_exit();
 err_chrdev:
 	analyzer_chrdev_exit();
 err_put:
@@ -163,8 +202,11 @@ err_free:
  */
 static void __exit analyzer_exit(void)
 {
+	can_rx_unregister(&init_net, analyzer_dev, 0,
+					  CAN_ERR_FLAG | CAN_ERR_MASK, analyzer_rx_err, NULL);
 	can_rx_unregister(&init_net, analyzer_dev, 0, 0, analyzer_rx, NULL);
 	synchronize_rcu();
+	analyzer_stats_exit();
 	analyzer_chrdev_exit();
 	dev_put(analyzer_dev);
 
@@ -181,4 +223,4 @@ module_exit(analyzer_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Rahul Bose");
-MODULE_DESCRIPTION("CAN bus analyzer: receive hook, filters, kfifo, /dev/can_analyzer");
+MODULE_DESCRIPTION("CAN bus analyzer: receive hook, filters, kfifo, statistics, /dev/can_analyzer");
