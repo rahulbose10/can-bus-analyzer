@@ -5,6 +5,7 @@
  * can_analyzer_chrdev.c owns /dev/can_analyzer.
  * can_analyzer_filter.c owns the filter rules.
  * can_analyzer_stats.c owns the counters and /proc/can_analyzer/stats.
+ * can_analyzer_netlink.c owns the generic netlink family.
  */
 #ifndef CAN_ANALYZER_H
 #define CAN_ANALYZER_H
@@ -48,5 +49,24 @@ void analyzer_stats_error(const struct can_frame *cf);
 
 /* rx counters for /proc. Process context. */
 void analyzer_rx_counters(long *filtered, long *dropped, unsigned int *unread);
+
+/* One copy of the counters, so /proc and netlink show the same numbers. */
+struct analyzer_stats_snapshot {
+	u64 frames;
+	u64 filtered;
+	u64 dropped;
+	u64 errors;
+	u32 unread;
+	u32 rate_fps;
+	u32 peak_fps;
+	u32 load_x10;
+	u32 peak_load_x10;
+};
+void analyzer_stats_snapshot(struct analyzer_stats_snapshot *st);
+
+/* Generic netlink. error_event() runs in softirq. */
+int analyzer_nl_init(void);
+void analyzer_nl_exit(void);
+void analyzer_nl_error_event(u32 err_class, u32 ctrl_status, u64 ts_ns);
 
 #endif

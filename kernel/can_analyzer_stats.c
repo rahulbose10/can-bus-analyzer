@@ -15,6 +15,7 @@
 #include <linux/seq_file.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
+#include <linux/timekeeping.h>
 #include <linux/can/error.h>
 #include "can_analyzer.h"
 
@@ -115,6 +116,7 @@ void analyzer_stats_error(const struct can_frame *cf)
 			atomic_inc(&err_class[i]);
 	if (cls & CAN_ERR_CRTL)
 		WRITE_ONCE(last_ctrl_status, cf->data[1]);
+	analyzer_nl_error_event(cls, cf->data[1], ktime_get_ns());
 }
 
 /* hrtimer callback, hard interrupt context: arithmetic only, no locks. */
@@ -138,28 +140,40 @@ static enum hrtimer_restart rate_tick(struct hrtimer *t)
 	return HRTIMER_RESTART;
 }
 
-static int stats_show(struct seq_file *m, void *v)
+void analyzer_stats_snapshot(struct analyzer_stats_snapshot *st)
 {
 	long filtered, dropped;
-	unsigned int unread, bkt;
+
+	analyzer_rx_counters(&filtered, &dropped, &st->unread);
+	st->frames = atomic64_read(&frames_total);
+	st->filtered = filtered;
+	st->dropped = dropped;
+	st->errors = atomic64_read(&errors_total);
+	st->rate_fps = READ_ONCE(rate_fps);
+	st->peak_fps = READ_ONCE(peak_fps);
+	st->load_x10 = READ_ONCE(load_x10);
+	st->peak_load_x10 = READ_ONCE(peak_load_x10);
+}
+
+static int stats_show(struct seq_file *m, void *v)
+{
+	struct analyzer_stats_snapshot st;
+	unsigned int bkt;
 	struct id_stat *s;
-	u32 x10, peak_x10;
 	int i;
 
-	analyzer_rx_counters(&filtered, &dropped, &unread);
-	x10 = READ_ONCE(load_x10);
-	peak_x10 = READ_ONCE(peak_load_x10);
+	analyzer_stats_snapshot(&st);
 
-	seq_printf(m, "frames             %lld\n", atomic64_read(&frames_total));
-	seq_printf(m, "filtered           %ld\n", filtered);
-	seq_printf(m, "dropped            %ld\n", dropped);
-	seq_printf(m, "unread             %u\n", unread);
-	seq_printf(m, "rate_fps           %u\n", READ_ONCE(rate_fps));
-	seq_printf(m, "peak_fps           %u\n", READ_ONCE(peak_fps));
-	seq_printf(m, "bus_load_pct       %u.%u\n", x10 / 10, x10 % 10);
-	seq_printf(m, "peak_bus_load_pct  %u.%u\n", peak_x10 / 10, peak_x10 % 10);
+	seq_printf(m, "frames             %llu\n", st.frames);
+	seq_printf(m, "filtered           %llu\n", st.filtered);
+	seq_printf(m, "dropped            %llu\n", st.dropped);
+	seq_printf(m, "unread             %u\n", st.unread);
+	seq_printf(m, "rate_fps           %u\n", st.rate_fps);
+	seq_printf(m, "peak_fps           %u\n", st.peak_fps);
+	seq_printf(m, "bus_load_pct       %u.%u\n", st.load_x10 / 10, st.load_x10 % 10);
+	seq_printf(m, "peak_bus_load_pct  %u.%u\n", st.peak_load_x10 / 10, st.peak_load_x10 % 10);
 	seq_printf(m, "bitrate            %u\n", bitrate);
-	seq_printf(m, "errors             %lld\n", atomic64_read(&errors_total));
+	seq_printf(m, "errors             %llu\n", st.errors);
 	for (i = 0; i < ARRAY_SIZE(err_class); i++)
 		seq_printf(m, "  %-17s%d\n", err_names[i], atomic_read(&err_class[i]));
 	seq_printf(m, "last_ctrl_status   0x%02x\n", READ_ONCE(last_ctrl_status));

@@ -162,11 +162,17 @@ static int __init analyzer_init(void)
 		goto err_chrdev;
 	}
 
+	ret = analyzer_nl_init();
+	if (ret) {
+		pr_err("genl_register_family failed: %d\n", ret);
+		goto err_stats;
+	}
+
 	ret = can_rx_register(&init_net, analyzer_dev, 0, 0, analyzer_rx,
 						  NULL, "can_analyzer", NULL);
 	if (ret) {
 		pr_err("can_rx_register failed: %d\n", ret);
-		goto err_stats;
+		goto err_nl;
 	}
 
 	/* Error frames only reach receivers with CAN_ERR_FLAG in the mask. */
@@ -185,6 +191,8 @@ static int __init analyzer_init(void)
 err_data:
 	can_rx_unregister(&init_net, analyzer_dev, 0, 0, analyzer_rx, NULL);
 	synchronize_rcu();
+err_nl:
+	analyzer_nl_exit();
 err_stats:
 	analyzer_stats_exit();
 err_chrdev:
@@ -206,6 +214,7 @@ static void __exit analyzer_exit(void)
 					  CAN_ERR_FLAG | CAN_ERR_MASK, analyzer_rx_err, NULL);
 	can_rx_unregister(&init_net, analyzer_dev, 0, 0, analyzer_rx, NULL);
 	synchronize_rcu();
+	analyzer_nl_exit();
 	analyzer_stats_exit();
 	analyzer_chrdev_exit();
 	dev_put(analyzer_dev);
@@ -223,4 +232,4 @@ module_exit(analyzer_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Rahul Bose");
-MODULE_DESCRIPTION("CAN bus analyzer: receive hook, filters, kfifo, statistics, /dev/can_analyzer");
+MODULE_DESCRIPTION("CAN bus analyzer: receive hook, filters, kfifo, statistics, netlink");

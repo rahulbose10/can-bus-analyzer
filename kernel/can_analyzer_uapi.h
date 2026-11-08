@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
- * can_analyzer_uapi.h: the ioctl interface, shared with user space.
+ * can_analyzer_uapi.h: the ioctl and generic netlink interface,
+ * shared with user space.
  * Only fixed-size types, so a user program can include it as well.
  */
 #ifndef CAN_ANALYZER_UAPI_H
@@ -29,5 +30,42 @@ struct can_analyzer_rule_list {
 #define CAN_ANALYZER_ADD_RULE   _IOW(CAN_ANALYZER_IOC_MAGIC, 1, struct can_analyzer_rule)
 #define CAN_ANALYZER_DEL_RULE   _IOW(CAN_ANALYZER_IOC_MAGIC, 2, struct can_analyzer_rule)
 #define CAN_ANALYZER_LIST_RULES _IOR(CAN_ANALYZER_IOC_MAGIC, 3, struct can_analyzer_rule_list)
+
+/* Generic netlink interface. */
+#define CAN_ANALYZER_GENL_NAME      "can_analyzer"
+#define CAN_ANALYZER_GENL_VERSION   1
+#define CAN_ANALYZER_MCGRP_EVENTS   "events"
+
+enum can_analyzer_cmd {
+	CAN_ANALYZER_CMD_UNSPEC,
+	CAN_ANALYZER_CMD_GET_STATS,
+	CAN_ANALYZER_CMD_ADD_RULE,
+	CAN_ANALYZER_CMD_DEL_RULE,
+	CAN_ANALYZER_CMD_ERROR_EVENT,
+	__CAN_ANALYZER_CMD_MAX,
+};
+#define CAN_ANALYZER_CMD_MAX (__CAN_ANALYZER_CMD_MAX - 1)
+
+enum can_analyzer_attr {
+	CAN_ANALYZER_A_UNSPEC,
+	CAN_ANALYZER_A_PAD,
+	CAN_ANALYZER_A_RULE_ID,         /* u32 */
+	CAN_ANALYZER_A_RULE_MASK,       /* u32 */
+	CAN_ANALYZER_A_RULE_ACTION,     /* u32 */
+	CAN_ANALYZER_A_FRAMES,          /* u64 */
+	CAN_ANALYZER_A_FILTERED,        /* u64 */
+	CAN_ANALYZER_A_DROPPED,         /* u64 */
+	CAN_ANALYZER_A_UNREAD,          /* u32 */
+	CAN_ANALYZER_A_RATE_FPS,        /* u32 */
+	CAN_ANALYZER_A_PEAK_FPS,        /* u32 */
+	CAN_ANALYZER_A_LOAD_X10,        /* u32, tenths of a percent */
+	CAN_ANALYZER_A_PEAK_LOAD_X10,   /* u32 */
+	CAN_ANALYZER_A_ERRORS,          /* u64 */
+	CAN_ANALYZER_A_ERR_CLASS,       /* u32, CAN_ERR_* bits */
+	CAN_ANALYZER_A_CTRL_STATUS,     /* u32, data[1] of the error frame */
+	CAN_ANALYZER_A_TIMESTAMP,       /* u64, ns */
+	__CAN_ANALYZER_A_MAX,
+};
+#define CAN_ANALYZER_A_MAX (__CAN_ANALYZER_A_MAX - 1)
 
 #endif

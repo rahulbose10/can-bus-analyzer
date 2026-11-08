@@ -1,5 +1,5 @@
 obj-m += can_analyzer.o
-can_analyzer-objs := can_analyzer_rx.o can_analyzer_chrdev.o can_analyzer_filter.o can_analyzer_stats.o
+can_analyzer-objs := can_analyzer_rx.o can_analyzer_chrdev.o can_analyzer_filter.o can_analyzer_stats.o can_analyzer_netlink.o
 
 KDIR ?= /lib/modules/$(shell uname -r)/build
 
