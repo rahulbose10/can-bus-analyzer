@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * can_analyzer_chrdev.c: /dev/can_analyzer, one text line per frame,
- * and the ioctl calls that manage filter rules.
+ * the ioctl calls that manage filter rules, and the sysfs attributes
+ * enable and frame_count.
  */
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <linux/module.h>
 #include <linux/capability.h>
+#include <linux/device.h>
 #include <linux/fs.h>
+#include <linux/kstrtox.h>
 #include <linux/miscdevice.h>
 #include <linux/poll.h>
 #include <linux/slab.h>
@@ -106,11 +109,47 @@ static const struct file_operations analyzer_fops = {
 	.llseek         = noop_llseek,
 };
 
+/* sysfs: enable is read and write (root only), frame_count is read only. */
+static ssize_t enable_show(struct device *dev, struct device_attribute *attr,
+						   char *buf)
+{
+	return sysfs_emit(buf, "%d\n", READ_ONCE(analyzer_enabled));
+}
+
+static ssize_t enable_store(struct device *dev, struct device_attribute *attr,
+							const char *buf, size_t count)
+{
+	bool on;
+	int ret;
+
+	ret = kstrtobool(buf, &on);
+	if (ret)
+		return ret;
+	WRITE_ONCE(analyzer_enabled, on);
+	return count;
+}
+static DEVICE_ATTR_RW(enable);
+
+static ssize_t frame_count_show(struct device *dev,
+								struct device_attribute *attr, char *buf)
+{
+	return sysfs_emit(buf, "%ld\n", analyzer_rx_seen());
+}
+static DEVICE_ATTR_RO(frame_count);
+
+static struct attribute *analyzer_attrs[] = {
+	&dev_attr_enable.attr,
+	&dev_attr_frame_count.attr,
+	NULL,
+};
+ATTRIBUTE_GROUPS(analyzer);
+
 static struct miscdevice analyzer_misc = {
 	.minor = MISC_DYNAMIC_MINOR,
 	.name  = "can_analyzer",
 	.fops  = &analyzer_fops,
 	.mode  = 0444,
+	.groups = analyzer_groups,
 };
 
 int analyzer_chrdev_init(void)

@@ -24,6 +24,12 @@ struct analyzer_record {
 /* Readers sleep here until a frame is stored. */
 extern wait_queue_head_t analyzer_wq;
 
+/* Capture on or off, set through sysfs. */
+extern bool analyzer_enabled;
+
+/* Frames seen since load, for sysfs. */
+long analyzer_rx_seen(void);
+
 /* Take the oldest record out of the buffer. Returns 1 if one was taken. */
 int analyzer_rx_pop(struct analyzer_record *rec);
 

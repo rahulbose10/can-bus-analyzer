@@ -30,6 +30,7 @@ MODULE_PARM_DESC(fifo_size, "Frames the buffer holds, rounded up to a power of 2
 static DECLARE_KFIFO_PTR(rx_fifo, struct analyzer_record);
 static DEFINE_SPINLOCK(rx_lock);
 DECLARE_WAIT_QUEUE_HEAD(analyzer_wq);
+bool analyzer_enabled = true;
 
 static struct net_device *analyzer_dev;
 static atomic_long_t frames_seen = ATOMIC_LONG_INIT(0);
@@ -46,7 +47,7 @@ static void analyzer_rx(struct sk_buff *skb, void *data)
 	struct analyzer_record rec;
 	unsigned int stored;
 
-	if (skb->len < sizeof(*cf))
+	if (skb->len < sizeof(*cf) || !READ_ONCE(analyzer_enabled))
 		return;
 
 	rec.ts_ns = ktime_get_ns();
@@ -99,6 +100,11 @@ bool analyzer_rx_empty(void)
 	empty = kfifo_is_empty(&rx_fifo);
 	spin_unlock_bh(&rx_lock);
 	return empty;
+}
+
+long analyzer_rx_seen(void)
+{
+	return atomic_long_read(&frames_seen);
 }
 
 void analyzer_rx_counters(long *filtered, long *dropped, unsigned int *unread)
