@@ -23,7 +23,11 @@ It is a six week project to learn kernel driver work on real hardware: softirq c
 
 The AM3358 has two CAN controllers, so one board can make a real two node bus. DCAN0 (`can0`) sends test traffic and DCAN1 (`can1`) is where the analyzer listens. A CAN frame needs a second node to acknowledge it, so a controller alone on the bus just keeps resending.
 
-![Wiring](docs/wiring.jpg)
+![Jumper wires on the P9 header](docs/wiring.jpg)
+
+![The two transceiver boards](docs/transceivers.jpg)
+
+The chip marked VP230 is the SN65HVD230. The resistor marked 121 next to CANL is the 120 ohm terminator, one on each board. The jumpers go straight onto the module pins.
 
 | | DCAN1, analyzer (can1) | DCAN0, traffic (can0) |
 |-|-|-|
@@ -239,7 +243,8 @@ dts/
 docs/
   DEVLOG.md                session by session record
   architecture.md          data path, locking, load and unload order
-  wiring.jpg               photo of the wiring
+  wiring.jpg               jumper wires on the P9 header
+  transceivers.jpg         the two transceiver boards
 ```
 
 ## License
