@@ -213,7 +213,9 @@ Latency. `userspace/can_latency 1000` sends one frame every 10 ms on `can0` and 
 | mpu_gate off, p99 | 346.3 us | 102.5 us | 454.0 us |
 | mpu_gate off, max | 388.8 us | 180.8 us | 561.0 us |
 
-The CPU governor was `performance` at 1 GHz in every run, so frequency scaling is not the cause. Most of the default latency is the CPU waking from its deep idle state, `mpu_gate`, which has a 130 us exit latency and had been used 884998 times since boot against 19220 for WFI. Turning it off through `/sys/devices/system/cpu/cpu0/cpuidle/state1/disable` halved the median end to end latency. The drop in send to callback fits that exit latency. Why callback to reader also dropped, from about 200 us to 48 us, is not explained yet. With the default settings the worst frame took 5.6 ms end to end.
+The CPU governor was `performance` at 1 GHz in every run, so frequency scaling is not the cause. Most of the default latency comes from the CPU's deep idle state, `mpu_gate`, which had been used 884998 times since boot against 19220 for WFI. Turning it off through `/sys/devices/system/cpu/cpu0/cpuidle/state1/disable` halved the median end to end latency. With the default settings the worst frame took 5.6 ms end to end.
+
+Why both steps get faster: the board's device tree gives `mpu_gate` 40 us to enter and 90 us to exit, the 130 us that cpuidle reports, and marks it `ti,idle-wkup-m3`. In the kernel source (`arch/arm/mach-omap2/pm33xx-core.c` and `sleep33xx.S`) that marker makes the CPU flush and invalidate its L1 and L2 data caches before it sleeps. With a 10 ms gap, every test frame wakes a CPU with empty caches. The wake-up adds to send to callback, and after it the interrupt path, the callback, the scheduler and the reader all run from DDR instead of cache, which is why callback to reader drops too, from about 200 us to 48 us. The cache part comes from the source and these timings. I have not counted cache misses.
 
 Sender limit. `cangen -i` ignores `ENOBUFS` instead of waiting, and only 1179 of 20000 frames got out. The other 18821 failed at the sender because the transmit queue (`qlen 10`) was full. The analyzer counted all 1179 that reached the bus.
 
