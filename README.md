@@ -203,6 +203,18 @@ To test it, `can0` was taken down and `can1` sent a frame that nobody could ackn
 
 Throughput. With a reader draining the device into `/dev/null`, `cangen can0 -g 0 -p 100 -n 20000 -I 100 -L 8` sent 20000 back to back frames with ID 0x100 and 8 data bytes. All 20000 were counted, with a peak of 4312 frames/s, an estimated peak load of 95.7%, 0 dropped and 0 errors. Derived: such a frame is at least 111 bits including the gap, so 500000 bit/s fits at most about 4504 of them per second even with no stuff bits, and 4312 is close to that ceiling.
 
+Latency. `userspace/can_latency 1000` sends one frame every 10 ms on `can0` and times it with `CLOCK_MONOTONIC`, the same clock as `t=`: from just before `write()` to the callback's `t=`, and from `t=` to just after `read()` returns in user space. Each run had 1000 frames, all matched, none lost. Derived: with stuff bits these test frames are 118 to 123 bits, 236 to 246 us on the wire.
+
+| Run | send to callback | callback to reader | send to reader |
+|-|-|-|-|
+| default, median | 413.3 us | 211.1 us | 626.6 us |
+| default, repeat, median | 412.7 us | 189.6 us | 625.9 us |
+| mpu_gate off, median | 270.3 us | 47.7 us | 317.7 us |
+| mpu_gate off, p99 | 346.3 us | 102.5 us | 454.0 us |
+| mpu_gate off, max | 388.8 us | 180.8 us | 561.0 us |
+
+The CPU governor was `performance` at 1 GHz in every run, so frequency scaling is not the cause. Most of the default latency is the CPU waking from its deep idle state, `mpu_gate`, which has a 130 us exit latency and had been used 884998 times since boot against 19220 for WFI. Turning it off through `/sys/devices/system/cpu/cpu0/cpuidle/state1/disable` halved the median end to end latency. The drop in send to callback fits that exit latency. Why callback to reader also dropped, from about 200 us to 48 us, is not explained yet. With the default settings the worst frame took 5.6 ms end to end.
+
 Sender limit. `cangen -i` ignores `ENOBUFS` instead of waiting, and only 1179 of 20000 frames got out. The other 18821 failed at the sender because the transmit queue (`qlen 10`) was full. The analyzer counted all 1179 that reached the bus.
 
 Full buffer. With `fifo_size=3` the kfifo was rounded up to 4. Six frames with no reader gave 6 seen, 4 stored and 2 dropped, and the stored frames were 0x201 to 0x204, the first four. A full buffer drops the new frame.
@@ -234,6 +246,7 @@ kernel/
   hello/                   first test module, used to prove the build on the board
 userspace/
   can_analyzer_tool.c      netlink client
+  can_latency.c            times frames from send to user space
 scripts/
   setup_can.sh             brings can0 and can1 up together
   can_rules.py             ioctl client for the filter rules

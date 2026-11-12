@@ -181,3 +181,12 @@
 - That changes the open question from session 2. There the stuck 777 frame's t was compared with the dmesg time of the can0: setting BTR line and looked about 0.1 s earlier. Today the two clocks were about 0.12 s apart, so that comparison can't show which came first. My reading: can0 came up and acknowledged the frame. I did not measure the offset on 9 Nov, so it stays a reading, not a result.
 - README.md rewritten with these results, docs/architecture.md and docs/wiring.jpg added, and the comment in scripts/setup_can.sh now names the new overlay.
 - Lesson: two timestamps can only be compared when they come from the same clock. Also, in a && b & the & sends the whole chain to the background, not only b.
+
+## 2026-11-13 - Week 5, latency
+- Added userspace/can_latency.c and a can_latency target in userspace/Makefile. It sends ID 7a5 with a sequence number in the data on can0 every 10 ms, reads /dev/can_analyzer, and uses CLOCK_MONOTONIC for t0 just before write(), the module's t=, and t2 just after read(). Built in ~/fresh with no warnings.
+- Derived: with stuff bits these frames are 118 to 123 bits, 236 to 246 us at 500000 bit/s.
+- Run 1, 1000 frames, 1000 matched, 0 lost. Medians: send to callback 413.3 us, callback to reader 211.1 us, send to reader 626.6 us. Minimums 305.2, 42.5 and 350.0 us, worst end to end 2130.6 us.
+- I guessed CPU frequency scaling. Wrong: scaling_governor was already performance and scaling_cur_freq 1000000. So the second run was a plain repeat: medians 412.7, 189.6 and 625.9 us, worst end to end 5585.4 us.
+- cpuidle has two states: WFI, latency 1, used 19220 times, and mpu_gate, latency 130, used 884998 times. With state1/disable set to 1 the medians were 270.3, 47.7 and 317.7 us, p99 346.3, 102.5 and 454.0 us, worst end to end 561.0 us. Set it back to 0 afterwards.
+- So most of the default latency is the CPU waking from mpu_gate. The send to callback drop fits its 130 us exit latency. Why callback to reader also dropped, from about 200 us to 48 us, I can't explain yet.
+- Lesson: a tight cluster of results far above the minimum pointed at a CPU state, not at random noise. Check the governor and the idle states before blaming the code.
