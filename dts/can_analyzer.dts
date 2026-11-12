@@ -1,0 +1,38 @@
+/dts-v1/;
+/plugin/;
+
+/*
+ * DCAN1 for can_analyzer: P9_24 is dcan1_rx, P9_26 is dcan1_tx.
+ * Each pin entry is <offset conf mux>, offset from the pinmux base 0x44e10800.
+ */
+
+&{/chosen} {
+	overlays {
+		can_analyzer = "DCAN1 on P9_24 and P9_26";
+	};
+};
+
+/* release the pins from the cape-universal pinmux helpers */
+&ocp {
+	P9_24_pinmux {
+		status = "disabled";
+	};
+	P9_26_pinmux {
+		status = "disabled";
+	};
+};
+
+&am33xx_pinmux {
+	can_analyzer_dcan1_pins: can_analyzer_dcan1_pins {
+		pinctrl-single,pins = <
+			0x184 0x30 0x02	/* P9_24 uart1_txd: mode 2 dcan1_rx, input on, pull-up */
+			0x180 0x10 0x02	/* P9_26 uart1_rxd: mode 2 dcan1_tx, pull-up */
+		>;
+	};
+};
+
+&dcan1 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&can_analyzer_dcan1_pins>;
+};
